@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: payments-cutover-simulator
+
+  # Matches docker-compose.yml. Tests ignore these and use their own containers.
+  datasource:
+    url: jdbc:postgresql://localhost:5432/cutover
+    username: cutover
+    password: cutover
+
+  # Flyway runs every file in src/main/resources/db/migration on startup, in order.
+  flyway:
+    enabled: true
+
+  kafka:
+    bootstrap-servers: localhost:9092
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

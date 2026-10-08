@@ -1,0 +1,38 @@
+# Starts the two things the app needs on your laptop:
+#   PostgreSQL on localhost:5432
+#   Kafka      on localhost:9092
+#
+#   docker compose up -d     start both (in the background)
+#   docker compose ps        check they're running
+#   docker compose logs -f   watch their logs (Ctrl+C to stop watching)
+#   docker compose down      stop both (your data is kept)
+#   docker compose down -v   stop both and DELETE the database data (fresh start)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cutover-postgres
+    environment:
+      POSTGRES_DB: cutover
+      POSTGRES_USER: cutover
+      POSTGRES_PASSWORD: cutover
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cutover -d cutover"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  kafka:
+    # Official Apache Kafka image. With no extra settings it runs a single broker
+    # in KRaft mode (no ZooKeeper) and is reachable from your laptop on localhost:9092.
+    image: apache/kafka:3.9.1
+    container_name: cutover-kafka
+    ports:
+      - "9092:9092"
+
+volumes:
+  postgres-data:
