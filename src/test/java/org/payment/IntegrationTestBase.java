@@ -9,21 +9,22 @@ import org.testcontainers.kafka.KafkaContainer;
 
 /**
  * Every integration test extends this class.
- *
- * Testcontainers starts a fresh Postgres and Kafka in Docker for the tests, and
- * @ServiceConnection points Spring at them automatically. So tests never touch
- * the database from docker-compose.yml, and you don't need `docker compose up` to run them:
- * Docker Desktop just has to be open.
+ * The containers start ONCE for the whole test run and are shared by all test classes.
+ * (No @Testcontainers / @Container: those would stop them after each class, while Spring
+ * keeps reusing the app it built for the first class.)
+ * Testcontainers removes them automatically when the test run ends.
  */
 @SpringBootTest
-@Testcontainers
 public abstract class IntegrationTestBase {
 
-    @Container
     @ServiceConnection
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 
-    @Container
     @ServiceConnection
     static final KafkaContainer KAFKA = new KafkaContainer("apache/kafka:3.9.1");
+
+    static {
+        POSTGRES.start();
+        KAFKA.start();
+    }
 }

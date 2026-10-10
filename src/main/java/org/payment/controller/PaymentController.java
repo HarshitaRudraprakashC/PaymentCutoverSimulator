@@ -31,7 +31,7 @@ public class PaymentController {
     private final PaymentService paymentService;
 
     /** Authorize a payment. 201 Created with the new payment. */
-    @PostMapping("/authorize")
+    @PostMapping()
     public ResponseEntity<PaymentResponse> authorize(
             @Valid @RequestBody AuthRequest authRequest,
             @RequestHeader(IDEMPOTENCY_KEY) String idempotencyKey){

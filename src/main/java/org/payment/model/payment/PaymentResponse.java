@@ -36,7 +36,7 @@ public record PaymentResponse(
 ) {
     public static PaymentResponse from(Payment p) {
         return new PaymentResponse(
-                p.id(), p.merchantId(), p.amount(), p.currency(),
+                p.id(), p.merchantId(), p.amountMinor(), p.currency(),
                 p.processor(), p.status(), p.captureAttempts(),
                 p.createdAt(), p.updatedAt());
     }

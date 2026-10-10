@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public record Payment(UUID id,
                       String merchantId,
-                      long amount,
+                      long amountMinor,
                       String currency,
                       ProcessorName processor,
                       PaymentStatus status,
