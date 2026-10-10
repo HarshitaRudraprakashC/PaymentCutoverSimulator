@@ -94,7 +94,7 @@ We **never** send a capture again until the processor tells us it never received
 
 ## Results
 
-> 🚧 **Work in progress:** step 1 of 9 done (setup). See the [build plan](docs/DESIGN.md#build-order).
+> 🚧 **Work in progress:** step 2 of 9 done (setup). See the [build plan](docs/DESIGN.md#build-order).
 ### 1. The migration run
 
 `./gradlew migrate` runs a full migration through the real API. Partway through, a bug is switched on in the new processor to prove the gate stops the rollout.
