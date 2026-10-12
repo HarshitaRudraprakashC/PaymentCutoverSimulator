@@ -31,11 +31,12 @@ class CaptureHappyPathTest extends IntegrationTestBase {
 
     @Test
     void authorizeThenCapture_endsCapturedWithBalancedLedger() {
-        Payment authorized = paymentService.authorize(new AuthRequest("m-1", 10_000, "EUR"), "auth-1");
+        UUID id = paymentService.authorize("auth-1", new AuthRequest("m-1", 10_000, "EUR")).body().id();
+        Payment authorized = paymentService.get(id);
         assertEquals(AUTHORIZED, authorized.status());
 
-        Payment captured = paymentService.capture(authorized.id(), "cap-1");
-        assertEquals(CAPTURED, captured.status());
+        paymentService.capture(id, "cap-1");
+        Payment captured = paymentService.get(id);        assertEquals(CAPTURED, captured.status());
         assertEquals(1, captured.captureAttempts());
         assertNull(captured.pendingSince());
 
@@ -47,7 +48,8 @@ class CaptureHappyPathTest extends IntegrationTestBase {
 
     @Test
     void capturingTwice_isRejected_andLedgerStillHasTwoRows() {
-        Payment authorized = paymentService.authorize(new AuthRequest("m-1", 5_000, "EUR"), "auth-2");
+        UUID id = paymentService.authorize("auth-2", new AuthRequest("m-1", 10_000, "EUR")).body().id();
+        Payment authorized = paymentService.get(id);
         paymentService.capture(authorized.id(), "cap-2");                     // ← first capture: must be here
 
         assertThatThrownBy(() -> paymentService.capture(authorized.id(), "cap-2b"))

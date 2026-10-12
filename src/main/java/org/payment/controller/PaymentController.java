@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.payment.model.idempotency.StoredResponse;
 import org.payment.model.payment.Payment;
 import org.payment.model.payment.PaymentResponse;
 import org.payment.model.payment.PaymentStatus;
@@ -36,8 +37,7 @@ public class PaymentController {
             @Valid @RequestBody AuthRequest authRequest,
             @RequestHeader(IDEMPOTENCY_KEY) String idempotencyKey){
 
-        Payment payment = paymentService.authorize(authRequest, idempotencyKey);
-        return ResponseEntity.status(HttpStatus.CREATED).body(PaymentResponse.from(payment));
+        return toHttp(paymentService.authorize(idempotencyKey, authRequest));
     }
 
 
@@ -50,11 +50,7 @@ public class PaymentController {
     public ResponseEntity<PaymentResponse> capture(
             @NonNull @PathVariable UUID id,
             @RequestHeader(IDEMPOTENCY_KEY) String idempotencyKey ){
-        Payment payment = paymentService.capture(id, idempotencyKey);
-        HttpStatus status = payment.status() == PaymentStatus.CAPTURE_PENDING
-                ? HttpStatus.ACCEPTED
-                : HttpStatus.OK;
-        return ResponseEntity.status(status).body(PaymentResponse.from(payment));
+        return toHttp(paymentService.capture(id, idempotencyKey));
     }
 
 
@@ -62,6 +58,11 @@ public class PaymentController {
     @GetMapping("/{id}")
     public PaymentResponse get(@NonNull @PathVariable UUID id){
         return PaymentResponse.from(paymentService.get(id));
+    }
+
+    /** Same status and body every time, whether it's the first answer or a replay. */
+    private static ResponseEntity<PaymentResponse> toHttp(StoredResponse response) {
+        return ResponseEntity.status(response.httpStatus()).body(response.body());
     }
 
 }
