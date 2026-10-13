@@ -79,4 +79,20 @@ public class PaymentRepository {
     private static Instant toInstant(Timestamp ts) {
         return ts == null ? null : ts.toInstant();
     }
+
+    /**
+     * CAPTURE_PENDING -> AUTHORIZED: the processor told us for certain that nothing was captured,
+     * so the payment can be captured again later.
+     */
+    public boolean markCaptureFailed(UUID id, int expectedVersion) {
+        int rows = jdbc.update("""
+            UPDATE payments
+               SET status = 'AUTHORIZED',
+                   version = version + 1,
+                   pending_since = NULL,
+                   updated_at = now()
+             WHERE id = ? AND status = 'CAPTURE_PENDING' AND version = ?
+            """, id, expectedVersion);
+        return rows == 1;
+    }
 }

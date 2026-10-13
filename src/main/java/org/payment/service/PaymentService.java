@@ -4,13 +4,17 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.payment.model.exception.ApiException;
 import org.payment.model.exception.ApiException.InvalidStateException;
+import org.payment.model.exception.ProcessorExceptions;
+import org.payment.model.exception.ProcessorExceptions.ProcessorFailedException;
 import org.payment.model.idempotency.RequestHash;
 import org.payment.model.idempotency.StoredResponse;
 import org.payment.model.payment.Payment;
 import org.payment.model.payment.PaymentResponse;
 import org.payment.model.payment.PaymentStatus;
+import org.payment.model.processor.ProcessorName;
 import org.payment.model.request.AuthRequest;
 import org.payment.processor.Processor;
+import org.payment.processor.ProcessorRouter;
 import org.payment.repository.PaymentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -25,14 +29,14 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final LedgerService ledger;
-    private final Processor processor;
     private final TransactionTemplate tx;
     private final IdempotencyService idempotencyService;
+    private final ProcessorRouter router;
 
 
     public StoredResponse authorize(String idempotencyKey, AuthRequest request) {
         String merchantId = request.merchantId();
-        Integer amount = request.amount();
+        long amount = request.amount();
         String currency = request.currency();
 
         String hash = RequestHash.of("POST", "/payments" + merchantId, amount, currency);
@@ -43,8 +47,10 @@ public class PaymentService {
                 return replay.get();
             }
 
+            ProcessorName processor = router.chooseFor(request.merchantId());
             Payment payment = new Payment(
-                    UUID.randomUUID(), merchantId, amount, currency, processor.name(), PaymentStatus.AUTHORIZED,
+                    UUID.randomUUID(), request.merchantId(), request.amount(), request.currency(),
+                    processor, PaymentStatus.AUTHORIZED,
                     0, 0, null, null, null);
             paymentRepository.insert(payment);
 
@@ -77,8 +83,30 @@ public class PaymentService {
         }
         Payment pending = first.pending();
 
-        // No transaction open.
-        processor.capture(pending.captureReference(), pending.amountMinor());
+        // No transaction open.// capture: between transaction 1 and transaction 2
+        try {
+            router.processorFor(pending.processor())
+                    .capture(pending.captureReference(), pending.amountMinor());
+
+        } catch (ProcessorFailedException e) {
+            // We KNOW nothing was captured: undo, and free the key so a retry can run again.
+            tx.executeWithoutResult(status -> {
+                if (!paymentRepository.markCaptureFailed(pending.id(), pending.version())) {
+                    throw new InvalidStateException("Payment " + paymentId + " changed while capturing");
+                }
+                idempotencyService.release(pending.merchantId(), idempotencyKey);
+            });
+            throw e;
+
+        } catch (ProcessorExceptions.ProcessorTimeoutException e) {
+            // We DON'T KNOW. Money may have moved. Stay CAPTURE_PENDING and say so: 202.
+            // Never retry here, never mark failed. Step 5 finds out what really happened.
+            return tx.execute(status -> {
+                StoredResponse response = new StoredResponse(202, PaymentResponse.from(get(paymentId)));
+                idempotencyService.complete(pending.merchantId(), idempotencyKey, paymentId, response);
+                return response;
+            });
+        }
 
         // Transaction 2: status, ledger AND the saved answer, all together.
         return tx.execute(status -> {
@@ -90,23 +118,23 @@ public class PaymentService {
             idempotencyService.complete(pending.merchantId(), idempotencyKey, paymentId, response);
             return response;
         });
-}
-
-/**
- * What transaction 1 of capture hands back: a replayed answer, OR the pending payment.
- */
-private record TxOne(StoredResponse replay, Payment pending) {
-    static TxOne replay(StoredResponse r) {
-        return new TxOne(r, null);
     }
 
-    static TxOne proceed(Payment p) {
-        return new TxOne(null, p);
-    }
-}
+    /**
+     * What transaction 1 of capture hands back: a replayed answer, OR the pending payment.
+     */
+    private record TxOne(StoredResponse replay, Payment pending) {
+        static TxOne replay(StoredResponse r) {
+            return new TxOne(r, null);
+        }
 
-public Payment get(UUID paymentId) {
-    return paymentRepository.findById(paymentId)
-            .orElseThrow(() -> new ApiException.PaymentNotFoundException(paymentId));
-}
+        static TxOne proceed(Payment p) {
+            return new TxOne(null, p);
+        }
+    }
+
+    public Payment get(UUID paymentId) {
+        return paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ApiException.PaymentNotFoundException(paymentId));
+    }
 }

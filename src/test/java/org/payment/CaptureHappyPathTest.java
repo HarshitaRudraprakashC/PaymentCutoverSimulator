@@ -31,11 +31,12 @@ class CaptureHappyPathTest extends IntegrationTestBase {
 
     @Test
     void authorizeThenCapture_endsCapturedWithBalancedLedger() {
-        UUID id = paymentService.authorize("auth-1", new AuthRequest("m-1", 10_000, "EUR")).body().id();
+        UUID id = paymentService.authorize("auth-" + UUID.randomUUID(),
+                new AuthRequest("m-" + UUID.randomUUID(), 10_000, "EUR")).body().id();
         Payment authorized = paymentService.get(id);
         assertEquals(AUTHORIZED, authorized.status());
 
-        paymentService.capture(id, "cap-1");
+        paymentService.capture(id, "cap-" + UUID.randomUUID());
         Payment captured = paymentService.get(id);        assertEquals(CAPTURED, captured.status());
         assertEquals(1, captured.captureAttempts());
         assertNull(captured.pendingSince());

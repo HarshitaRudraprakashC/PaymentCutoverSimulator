@@ -57,4 +57,11 @@ public class IdempotencyRepository {
                  WHERE merchant_id = ? AND key = ?
                 """, paymentId, responseCode, responseBodyJson, merchantId, key);
     }
+
+    // IdempotencyRepository
+    /** Forget the key: the request had no effect, so a retry with the same key should run again. */
+    public void release(String merchantId, String key) {
+        jdbc.update("DELETE FROM idempotency_keys WHERE merchant_id = ? AND key = ?", merchantId, key);
+    }
+
 }

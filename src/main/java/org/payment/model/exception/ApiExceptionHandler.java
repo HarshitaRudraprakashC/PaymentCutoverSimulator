@@ -5,6 +5,7 @@ import org.payment.model.exception.ApiException.IdempotencyInProgressException;
 import org.payment.model.exception.ApiException.IdempotencyKeyReusedException;
 import org.payment.model.exception.ApiException.InvalidStateException;
 import org.payment.model.exception.ApiException.PaymentNotFoundException;
+import org.payment.model.exception.ProcessorExceptions.ProcessorFailedException;
 import org.payment.model.response.ErrorResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -61,5 +62,11 @@ public class ApiExceptionHandler {
 
     private static ResponseEntity<ErrorResponse> error(HttpStatus status, String code, String message) {
         return ResponseEntity.status(status).body(new ErrorResponse(code, message));
+    }
+
+    /** 502: the processor definitely failed and nothing was charged. Safe to retry, even with the same key. */
+    @ExceptionHandler(ProcessorFailedException.class)
+    ResponseEntity<ErrorResponse> processorFailed(ProcessorFailedException e) {
+        return error(HttpStatus.BAD_GATEWAY, "PROCESSOR_FAILED", e.getMessage());
     }
 }

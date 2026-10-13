@@ -58,6 +58,11 @@ public class IdempotencyService {
         idempRepo.complete(merchantId, key, paymentId, response.httpStatus(), writeBody(response.body()));
     }
 
+    // IdempotencyService
+    public void release(String merchantId, String key) {
+        idempRepo.release(merchantId, key);
+    }
+
     private String writeBody(PaymentResponse body) {
         try {
             return json.writeValueAsString(body);
