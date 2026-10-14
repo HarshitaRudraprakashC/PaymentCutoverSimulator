@@ -58,10 +58,24 @@ public class IdempotencyRepository {
                 """, paymentId, responseCode, responseBodyJson, merchantId, key);
     }
 
-    // IdempotencyRepository
+
     /** Forget the key: the request had no effect, so a retry with the same key should run again. */
     public void release(String merchantId, String key) {
         jdbc.update("DELETE FROM idempotency_keys WHERE merchant_id = ? AND key = ?", merchantId, key);
+    }
+
+    /**
+     * The request holding this key crashed (its lease ran out). Take the key over by extending
+     * the lease. Only one retry can win, because the WHERE still requires an expired lease.
+     */
+    public boolean takeOver(String merchantId, String key) {
+        int rows = jdbc.update("""
+            UPDATE idempotency_keys
+               SET locked_until = now() + interval '30 seconds'
+             WHERE merchant_id = ? AND key = ?
+               AND state = 'IN_PROGRESS' AND locked_until < now()
+            """, merchantId, key);
+        return rows == 1;
     }
 
 }

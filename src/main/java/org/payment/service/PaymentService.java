@@ -13,9 +13,9 @@ import org.payment.model.payment.PaymentResponse;
 import org.payment.model.payment.PaymentStatus;
 import org.payment.model.processor.ProcessorName;
 import org.payment.model.request.AuthRequest;
-import org.payment.processor.Processor;
 import org.payment.processor.ProcessorRouter;
 import org.payment.repository.PaymentRepository;
+import org.payment.resolver.CaptureResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -32,6 +32,7 @@ public class PaymentService {
     private final TransactionTemplate tx;
     private final IdempotencyService idempotencyService;
     private final ProcessorRouter router;
+    private final CaptureResolver captureResolver;
 
 
     public StoredResponse authorize(String idempotencyKey, AuthRequest request) {
@@ -79,7 +80,10 @@ public class PaymentService {
             return TxOne.proceed(get(paymentId));
         });
         if (first.replay() != null) {
-            return first.replay();
+            if (first.replay().httpStatus() != 202) {
+                return first.replay();
+            }
+            return resolveAndAnswer(paymentId, idempotencyKey);
         }
         Payment pending = first.pending();
 
@@ -136,5 +140,19 @@ public class PaymentService {
     public Payment get(UUID paymentId) {
         return paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new ApiException.PaymentNotFoundException(paymentId));
+    }
+
+    private StoredResponse resolveAndAnswer(UUID paymentId, String idempotencyKey) {
+        Payment now = captureResolver.resolve(paymentId);
+
+        if (now.status() == PaymentStatus.AUTHORIZED) {
+            // The re-send definitely failed: free the key, answer 502.
+            tx.executeWithoutResult(s -> idempotencyService.release(now.merchantId(), idempotencyKey));
+            throw new ProcessorFailedException(now.processor());
+        }
+        int httpStatus = now.status() == PaymentStatus.CAPTURE_PENDING ? 202 : 200;
+        StoredResponse answer = new StoredResponse(httpStatus, PaymentResponse.from(now));
+        tx.executeWithoutResult(s -> idempotencyService.complete(now.merchantId(), idempotencyKey, paymentId, answer));
+        return answer;
     }
 }

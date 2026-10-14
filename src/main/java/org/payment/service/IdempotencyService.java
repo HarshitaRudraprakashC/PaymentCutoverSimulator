@@ -45,7 +45,9 @@ public class IdempotencyService {
             throw new ApiException.IdempotencyKeyReusedException(key);
         }
         if (existing.state().equals("IN_PROGRESS")) {
-            // Step 5: if existing.leaseExpired(), the first request crashed; take over safely.
+            if (existing.leaseExpired() && idempRepo.takeOver(merchantId, key)) {
+                return Optional.of(new StoredResponse(202, null));
+            }
             throw new ApiException.IdempotencyInProgressException(key);
         }
         return Optional.of(new StoredResponse(existing.responseCode(), readBody(existing.responseBody())));

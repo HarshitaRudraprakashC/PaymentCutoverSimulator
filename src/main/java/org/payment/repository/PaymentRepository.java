@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -94,5 +95,33 @@ public class PaymentRepository {
              WHERE id = ? AND status = 'CAPTURE_PENDING' AND version = ?
             """, id, expectedVersion);
         return rows == 1;
+    }
+
+    /**
+     * Claim the right to send a capture AGAIN for a payment stuck in CAPTURE_PENDING.
+     * Only one caller can win (version check), so two resolvers can never both re-send.
+     * Also restarts the pending clock, so the scheduled resolver waits before looking again.
+     */
+    public boolean markResend(UUID id, int expectedVersion) {
+        int rows = jdbc.update("""
+            UPDATE payments
+               SET version = version + 1,
+                   capture_attempts = capture_attempts + 1,
+                   pending_since = now(),
+                   updated_at = now()
+             WHERE id = ? AND status = 'CAPTURE_PENDING' AND version = ?
+            """, id, expectedVersion);
+        return rows == 1;
+    }
+
+    /** Payments stuck in CAPTURE_PENDING for longer than minAgeSeconds, oldest first. */
+    public List<UUID> findPendingOlderThan(long minAgeSeconds, int limit) {
+        return jdbc.queryForList("""
+            SELECT id FROM payments
+             WHERE status = 'CAPTURE_PENDING'
+               AND pending_since < now() - make_interval(secs => ?)
+             ORDER BY pending_since
+             LIMIT ?
+            """, UUID.class, minAgeSeconds, limit);
     }
 }

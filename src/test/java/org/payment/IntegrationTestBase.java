@@ -14,7 +14,7 @@ import org.testcontainers.kafka.KafkaContainer;
  * keeps reusing the app it built for the first class.)
  * Testcontainers removes them automatically when the test run ends.
  */
-@SpringBootTest
+@SpringBootTest(properties = "cutover.resolver.enabled=false")
 public abstract class IntegrationTestBase {
 
     @ServiceConnection
