@@ -29,3 +29,9 @@ cutover:
     enabled: true
     min-pending-seconds: 30
     interval-ms: 5000
+  recon:
+    pending-grace-seconds: 30     # don't touch a pending payment younger than this
+    gate:
+      max-recon-age-minutes: 60     # reconciliation must have run in the last hour
+      max-failure-rate: 0.01        # NEW must refuse fewer than 1% of captures
+      stuck-pending-seconds: 300

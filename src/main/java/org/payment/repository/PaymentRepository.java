@@ -90,6 +90,7 @@ public class PaymentRepository {
             UPDATE payments
                SET status = 'AUTHORIZED',
                    version = version + 1,
+                   capture_failures = capture_failures + 1,
                    pending_since = NULL,
                    updated_at = now()
              WHERE id = ? AND status = 'CAPTURE_PENDING' AND version = ?
@@ -123,5 +124,42 @@ public class PaymentRepository {
              ORDER BY pending_since
              LIMIT ?
             """, UUID.class, minAgeSeconds, limit);
+    }
+
+    // ---------------------------------------------------------------- step 6
+
+    /** CAPTURED -> SETTLED: the processor paid the money out to us. Same "only if unchanged" rule. */
+    public boolean markSettled(UUID id, int expectedVersion) {
+        int rows = jdbc.update("""
+                UPDATE payments
+                   SET status = 'SETTLED',
+                       version = version + 1,
+                       updated_at = now()
+                 WHERE id = ? AND status = 'CAPTURED' AND version = ?
+                """, id, expectedVersion);
+        return rows == 1;
+    }
+
+    public List<Payment> findByProcessorAndStatus(ProcessorName processor, PaymentStatus status) {
+        return jdbc.query("SELECT * FROM payments WHERE processor = ? AND status = ?",
+                ROW_MAPPER, processor.name(), status.name());
+    }
+
+    /** Refused captures / all capture attempts, for one processor. 0.0 when nothing was tried yet. */
+    public double captureFailureRate(ProcessorName processor) {
+        return jdbc.queryForObject("""
+                SELECT COALESCE(SUM(capture_failures)::float8 / NULLIF(SUM(capture_attempts), 0), 0)
+                  FROM payments
+                 WHERE processor = ?
+                """, Double.class, processor.name());
+    }
+
+    /** Payments on this processor stuck in CAPTURE_PENDING for longer than minAgeSeconds. */
+    public int countStuckPending(ProcessorName processor, long minAgeSeconds) {
+        return jdbc.queryForObject("""
+                SELECT count(*) FROM payments
+                 WHERE processor = ? AND status = 'CAPTURE_PENDING'
+                   AND pending_since < now() - make_interval(secs => ?)
+                """, Integer.class, processor.name(), minAgeSeconds);
     }
 }

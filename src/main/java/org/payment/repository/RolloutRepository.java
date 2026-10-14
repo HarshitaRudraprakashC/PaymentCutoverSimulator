@@ -19,4 +19,11 @@ public class RolloutRepository {
     public void setNewPercent(int percent) {
         jdbc.update("UPDATE rollout_config SET new_percent = ?, updated_at = now() WHERE id = 1", percent);
     }
+
+    public boolean compareAndSet(int expectedPercent, int newPercent) {
+        int rows = jdbc.update(
+                "UPDATE rollout_config SET new_percent = ?, updated_at = now() WHERE id = 1 AND new_percent = ?",
+                newPercent, expectedPercent);
+        return rows == 1;
+    }
 }

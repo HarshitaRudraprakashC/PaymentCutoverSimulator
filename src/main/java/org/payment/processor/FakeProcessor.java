@@ -5,6 +5,8 @@ import org.payment.model.processor.ProcessorStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 /**
  * Shared behaviour of both fake processors. Each keeps its own table: "the processor's system".
  *
@@ -38,5 +40,14 @@ public abstract class FakeProcessor implements Processor {
                         + " WHERE reference = ? AND type = 'CAPTURE'",
                 (rs, n) -> new ProcessorStatus(rs.getInt("captures"), rs.getLong("amount")),
                 reference);
+    }
+
+    @Override
+    public List<ProcessorReportLine> report() {
+        return jdbc.query(
+                "SELECT reference, count(*) AS captures, SUM(amount_minor) AS amount FROM " + table()
+                        + " WHERE type = 'CAPTURE' GROUP BY reference",
+                (rs, n) -> new ProcessorReportLine(
+                        rs.getString("reference"), rs.getInt("captures"), rs.getLong("amount")));
     }
 }
