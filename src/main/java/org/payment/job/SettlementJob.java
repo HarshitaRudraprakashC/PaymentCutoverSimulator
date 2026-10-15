@@ -2,6 +2,8 @@ package org.payment.job;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.payment.events.PaymentEvents;
+import org.payment.model.events.PaymentEventType;
 import org.payment.model.payment.Payment;
 import org.payment.model.payment.PaymentStatus;
 import org.payment.model.processor.ProcessorName;
@@ -32,6 +34,7 @@ public class SettlementJob {
     private final LedgerService ledgerService;
     private final ProcessorRouter router;
     private final TransactionTemplate tx;
+    private final PaymentEvents paymentEvents;
 
 
     /** Settle both processors. Returns how many payments were settled. */
@@ -48,18 +51,19 @@ public class SettlementJob {
                 .collect(Collectors.toMap(ProcessorReportLine::reference, Function.identity()));
 
         int settled = 0;
-        for (Payment p : paymentRepository.findByProcessorAndStatus(name, PaymentStatus.CAPTURED)) {
-            ProcessorReportLine line = report.get(p.captureReference());
-            if (line == null || line.captures() != 1 || line.amountMinor() != p.amountMinor()) {
+        for (Payment payment : paymentRepository.findByProcessorAndStatus(name, PaymentStatus.CAPTURED)) {
+            ProcessorReportLine line = report.get(payment.captureReference());
+            if (line == null || line.captures() != 1 || line.amountMinor() != payment.amountMinor()) {
                 continue;                       // doesn't match: leave it for reconciliation
             }
             // SETTLED + ledger in one transaction. If markSettled loses (someone else settled it
             // first), post nothing: the ledger can never get two settlement journals.
             Boolean done = tx.execute(status -> {
-                if (!paymentRepository.markSettled(p.id(), p.version())) {
+                if (!paymentRepository.markSettled(payment.id(), payment.version())) {
                     return false;
                 }
-                ledgerService.postSettlement(p);
+                ledgerService.postSettlement(payment);
+                paymentEvents.record(PaymentEventType.PAYMENT_SETTLED, payment.id());
                 return true;
             });
             if (Boolean.TRUE.equals(done)) {

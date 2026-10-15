@@ -1,6 +1,8 @@
 package org.payment.resolver;
 
 import lombok.RequiredArgsConstructor;
+import org.payment.events.PaymentEvents;
+import org.payment.model.events.PaymentEventType;
 import org.payment.model.exception.ApiException;
 import org.payment.model.exception.ApiException.PaymentNotFoundException;
 import org.payment.model.exception.ProcessorExceptions;
@@ -27,6 +29,7 @@ public class CaptureResolver {
     private final LedgerService ledger;
     private final ProcessorRouter router;
     private final TransactionTemplate tx;
+    private final PaymentEvents paymentEvents;
 
 
     /**
@@ -68,10 +71,11 @@ public class CaptureResolver {
      * CAPTURED + ledger in one transaction. If markCaptured returns false, someone else
      * finished it first, so we post nothing: the ledger can never get two capture journals.
      */
-    private void finishCaptured(Payment p) {
+    private void finishCaptured(Payment payment) {
         tx.executeWithoutResult(s -> {
-            if (paymentRepository.markCaptured(p.id(), p.version())) {
-                ledger.postCapture(p);
+            if (paymentRepository.markCaptured(payment.id(), payment.version())) {
+                ledger.postCapture(payment);
+                paymentEvents.record(PaymentEventType.PAYMENT_CAPTURED, payment.id());
             }
         });
     }

@@ -2,6 +2,9 @@ package org.payment.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.payment.events.PaymentEvents;
+import org.payment.model.events.PaymentEvent;
+import org.payment.model.events.PaymentEventType;
 import org.payment.model.exception.ApiException;
 import org.payment.model.exception.ApiException.InvalidStateException;
 import org.payment.model.exception.ProcessorExceptions;
@@ -33,6 +36,7 @@ public class PaymentService {
     private final IdempotencyService idempotencyService;
     private final ProcessorRouter router;
     private final CaptureResolver captureResolver;
+    private final PaymentEvents paymentEvents;
 
 
     public StoredResponse authorize(String idempotencyKey, AuthRequest request) {
@@ -118,6 +122,7 @@ public class PaymentService {
                 throw new InvalidStateException("Payment " + paymentId + " changed while capturing");
             }
             ledger.postCapture(pending);
+            paymentEvents.record(PaymentEventType.PAYMENT_CAPTURED, pending.id());
             StoredResponse response = new StoredResponse(200, PaymentResponse.from(get(paymentId)));
             idempotencyService.complete(pending.merchantId(), idempotencyKey, paymentId, response);
             return response;

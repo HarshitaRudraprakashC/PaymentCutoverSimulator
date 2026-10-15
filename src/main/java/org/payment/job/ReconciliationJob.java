@@ -11,6 +11,7 @@ import org.payment.processor.ProcessorRouter;
 import org.payment.reconciliation.ReconRecords.Finding;
 import org.payment.reconciliation.ReconRecords.OurSide;
 import org.payment.repository.ReconRepository;
+import org.payment.repository.ReconRepository.DriftRow;
 import org.payment.resolver.CaptureResolver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -21,6 +22,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.payment.model.payment.MismatchType.MISSING_INTERNAL;
+import static org.payment.model.payment.MismatchType.PROJECTION_DRIFT;
 
 /**
  * Reconciliation: compare what WE think happened with what each PROCESSOR says happened,
@@ -39,6 +43,9 @@ public class ReconciliationJob {
     private final ReconRepository reconRepository;
     private final ProcessorRouter router;
     private final CaptureResolver resolver;
+
+    @Value("${cutover.recon.projection-grace-seconds:30}")
+    private long projectionGraceSeconds;
 
     @Value("${cutover.recon.pending-grace-seconds:30}")
     private long pendingGraceSeconds;
@@ -61,13 +68,19 @@ public class ReconciliationJob {
                 ProcessorReportLine theirs = report.get(ours.captureReference());
                 for (Finding f : compare(name, ours, theirs)) {
                     found++;
-                    if (f.type() == MismatchType.MISSING_INTERNAL && ours.status() == PaymentStatus.CAPTURE_PENDING) {
+                    if (f.type() == MISSING_INTERNAL && ours.status() == PaymentStatus.CAPTURE_PENDING) {
                         finishStuckCapture(runId, f);           // S7: fix it, and keep a record
                     } else {
                         reconRepository.saveOpen(runId, f);
                     }
                 }
             }
+        }
+
+        for (DriftRow driftRow : reconRepository.findProjectionDrift(projectionGraceSeconds)) {
+            found++;
+            reconRepository.saveOpen(runId, new Finding(driftRow.paymentId(), driftRow.processor(), PROJECTION_DRIFT,
+                    driftRow.status().name(), driftRow.projectedStatus() == null ? "missing" : driftRow.projectedStatus()));
         }
 
         reconRepository.finishRun(runId, checked, found);
@@ -107,14 +120,14 @@ public class ReconciliationJob {
             case AUTHORIZED, FAILED -> {
                 // We say no money moved. The processor must have nothing.
                 if (captures > 0) {
-                    findings.add(new Finding(ours.paymentId(), processor, MismatchType.MISSING_INTERNAL, "no capture", actual));
+                    findings.add(new Finding(ours.paymentId(), processor, MISSING_INTERNAL, "no capture", actual));
                 }
             }
             case CAPTURE_PENDING -> {
                 // We don't know yet. Only a problem if the processor has it AND it has been
                 // pending longer than the grace period (so we don't race a live request).
                 if (captures > 0 && pendingLongerThanGrace(ours)) {
-                    findings.add(new Finding(ours.paymentId(), processor, MismatchType.MISSING_INTERNAL, "CAPTURED", "CAPTURE_PENDING"));
+                    findings.add(new Finding(ours.paymentId(), processor, MISSING_INTERNAL, "CAPTURED", "CAPTURE_PENDING"));
                 }
                 if (captures > 1) {
                     findings.add(new Finding(ours.paymentId(), processor, MismatchType.DUPLICATE_CAPTURE, expected, actual));

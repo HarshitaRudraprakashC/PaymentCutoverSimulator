@@ -166,4 +166,27 @@ public class ReconRepository {
     private static Instant toInstant(Timestamp ts) {
         return ts == null ? null : ts.toInstant();
     }
+
+    public record DriftRow(UUID paymentId, ProcessorName processor, PaymentStatus status, String projectedStatus) {}
+
+    /**
+     * Only payments that last changed more than graceSeconds ago: newer ones may simply have
+     * events still on their way.
+     */
+    public List<DriftRow> findProjectionDrift(long graceSeconds) {
+        return jdbc.query("""
+                SELECT p.id, p.processor, p.status, pp.status AS projected_status
+                  FROM payments p
+                  LEFT JOIN payment_projection pp ON pp.payment_id = p.id
+                 WHERE p.status IN ('CAPTURED', 'SETTLED')
+                   AND p.updated_at < now() - make_interval(secs => ?)
+                   AND pp.status IS DISTINCT FROM p.status
+                """,
+                (rs, n) -> new DriftRow(
+                        rs.getObject("id", UUID.class),
+                        ProcessorName.valueOf(rs.getString("processor")),
+                        PaymentStatus.valueOf(rs.getString("status")),
+                        rs.getString("projected_status")),
+                graceSeconds);
+    }
 }

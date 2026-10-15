@@ -14,8 +14,11 @@ import org.testcontainers.kafka.KafkaContainer;
  * keeps reusing the app it built for the first class.)
  * Testcontainers removes them automatically when the test run ends.
  */
-@SpringBootTest(properties = "cutover.resolver.enabled=false")
-public abstract class IntegrationTestBase {
+@SpringBootTest(properties = {
+        "cutover.resolver.enabled=false",
+        "cutover.relay.enabled=false",
+        "cutover.recon.projection-grace-seconds=3600"
+})public abstract class IntegrationTestBase {
 
     @ServiceConnection
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");

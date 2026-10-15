@@ -14,6 +14,8 @@ spring:
 
   kafka:
     bootstrap-servers: localhost:9092
+    consumer:
+      auto-offset-reset: earliest
 
 server:
   port: 8080
@@ -31,7 +33,14 @@ cutover:
     interval-ms: 5000
   recon:
     pending-grace-seconds: 30     # don't touch a pending payment younger than this
+    projection-grace-seconds: 30
     gate:
       max-recon-age-minutes: 60     # reconciliation must have run in the last hour
       max-failure-rate: 0.01        # NEW must refuse fewer than 1% of captures
       stuck-pending-seconds: 300
+  kafka:
+    topic: payment-events
+    relay:
+      enabled: true
+      interval-ms: 500
+      batch-size: 100
