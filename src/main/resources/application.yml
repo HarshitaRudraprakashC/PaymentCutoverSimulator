@@ -44,3 +44,10 @@ cutover:
       enabled: true
       interval-ms: 500
       batch-size: 100
+
+migration:
+  batch-size: 1000          # payments per batch (9 batches in a full run)
+  merchants: 200            # spread over this many merchants, so "5%" really means ~10 merchants
+  timeout-rate: 0.02        # 2% of captures time out AFTER the processor captured
+  bug-rate: 0.05            # step 3: NEW under-captures 5% of payments
+  drift-wait-seconds: 30    # how long to wait for Kafka to catch up at the end

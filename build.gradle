@@ -61,3 +61,14 @@ tasks.named('test') {
         events 'passed', 'skipped', 'failed'
     }
 }
+
+tasks.register('migrate', org.springframework.boot.gradle.tasks.run.BootRun) {
+    group = 'application'
+    description = 'Runs the full cutover through the real API and prints the migration log'
+    mainClass.set(tasks.named('bootRun').flatMap { it.mainClass })
+    classpath = sourceSets.main.runtimeClasspath
+    args '--cutover.migration.run-on-startup=true',
+            '--server.port=0',                 // any free port, so it never clashes with bootRun
+            '--spring.main.banner-mode=off',
+            '--logging.level.root=WARN'        // keep the console for the migration log
+}
