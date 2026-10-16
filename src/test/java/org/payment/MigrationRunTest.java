@@ -7,7 +7,6 @@ import org.payment.migration.MigrationReport;
 import org.payment.migration.MigrationRunner;
 import org.payment.repository.RolloutRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -18,15 +17,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  * calls the API over HTTP. Batches of 40 instead of 1000, and the bug fires on every NEW
  * capture so the gate is guaranteed to have something to block on.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-        "cutover.resolver.enabled=false",
-        "cutover.relay.enabled=false",
-        "cutover.recon.projection-grace-seconds=3600",
-        "cutover.migration.batch-size=40",
-        "cutover.migration.merchants=60",
-        "cutover.migration.bug-rate=1.0",
-        "cutover.migration.timeout-rate=0.1"
-})
 class MigrationRunTest extends IntegrationTestBase {
 
     @LocalServerPort int port;

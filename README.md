@@ -94,24 +94,28 @@ We **never** send a capture again until the processor tells us it never received
 
 ## Results
 
-> 🚧 **Work in progress:** step 7 of 9 done (setup). See the [build plan](docs/DESIGN.md#build-order).
+> 🚧 **Work in progress:** 
 ### 1. The migration run
 
 `./gradlew migrate` runs a full migration through the real API. Partway through, a bug is switched on in the new processor to prove the gate stops the rollout.
 
 ```text
-step  rollout    gate         what happened
- 1    0 → 5%     ✅ pass
- 2    5 → 25%    ✅ pass
- 3    25%        —            bug switched on: NEW captures 1 cent less on ~1% of payments
- 4    25 → 50%   ⛔ BLOCKED   reconciliation found TODO amount mismatches on NEW
- 5    25%        —            bug fixed, mismatches resolved by an operator
- 6    25 → 50%   ✅ pass
- 7    50 → 0%    (always ok)  ROLLBACK with TODO payments in flight on NEW
- 8    0%         —            all TODO in-flight payments finished on NEW, 0 stranded
- 9    0 → 100%   ✅ pass       stepped back up to 100%
+step  rollout     gate           what happened
+ 1    0 → 5%      ✅ pass        1000 payments (40 on NEW), 23 timeouts resolved
+ 2    5 → 25%     ✅ pass        1000 payments (215 on NEW), 17 timeouts resolved
+ 3    25%          —             bug ON: NEW captures 1 cent less on 5% of payments; 1000 payments (215 on NEW), 11 timeouts resolved
+ 4    25 → 50%    ⛔ BLOCKED     reconciliation found 12 amount mismatches on NEW
+ 5    25%          —             bug fixed, 12 problem(s) resolved by an operator
+ 6    25 → 50%    ✅ pass        1000 payments (450 on NEW), 16 timeouts resolved
+ 7    50 → 0%     (always ok)    ROLLBACK with 450 payments in flight on NEW
+ 8    0%           —             all 450 in-flight payments finished on NEW, 0 stranded
+ 9    0 → 100%    ✅ pass        1000 payments (40 on NEW), 15 timeouts resolved
+ 9    5 -> 25%    ✅ pass        1000 payments (215 on NEW), 19 timeouts resolved
+ 9    25 -> 50%   ✅ pass        1000 payments (450 on NEW), 22 timeouts resolved
+ 9    50 -> 100%  ✅ pass        1000 payments (1000 on NEW), 18 timeouts resolved
 
-Totals: TODO payments · duplicate charges: 0 · lost charges: 0 · ledger balanced ✅ · Kafka drift: 0
+Totals: 9000 payments | unknown outcomes resolved: 166 | duplicate charges: 0 | lost charges: 0 | ledger balanced: yes | Kafka drift: 0
+RESULT: PASS ✅ 
 ```
 
 ### 2. Safe vs naive
@@ -120,11 +124,13 @@ Totals: TODO payments · duplicate charges: 0 · lost charges: 0 · ledger balan
 
 | Metric | Safe | Naive |
 |---|---:|---:|
-| Duplicate charges | TODO (expect 0) | TODO (expect > 0) |
-| Lost charges | TODO (expect 0) | TODO |
-| Unknown outcomes resolved | TODO | — |
-| Problems found by reconciliation | TODO | TODO |
-| Capture latency p50 / p95 | TODO | TODO |
+| Timeouts (unknown outcomes) | 489 | 480 |
+| Unknown outcomes resolved | 489 | - |
+| Duplicate charges | 0 | 459 |
+| Lost charges | 0 | 0 |
+| Problems found by reconciliation | 0 | 459 |
+| Capture latency p50 / p95 (ms) | 14.8 / 27.3 | 17.9 / 26.1 |
+RESULT: PASS ✅ 
 
 The naive run is the control. It proves the tests and reconciliation really do catch double charges when the protection is missing.
 

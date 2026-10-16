@@ -1,10 +1,9 @@
 package org.payment;
 
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.KafkaContainer;
 
 /**
@@ -14,11 +13,19 @@ import org.testcontainers.kafka.KafkaContainer;
  * keeps reusing the app it built for the first class.)
  * Testcontainers removes them automatically when the test run ends.
  */
-@SpringBootTest(properties = {
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "cutover.resolver.enabled=false",
         "cutover.relay.enabled=false",
-        "cutover.recon.projection-grace-seconds=3600"
-})public abstract class IntegrationTestBase {
+        "cutover.recon.projection-grace-seconds=3600",
+        "cutover.migration.batch-size=40",
+        "cutover.migration.merchants=60",
+        "cutover.migration.bug-rate=1.0",
+        "cutover.migration.timeout-rate=0.1",
+        "cutover.simulation.payments=150",
+        "cutover.simulation.timeout-rate=0.3"
+})
+@AutoConfigureMockMvc
+public abstract class IntegrationTestBase {
 
     @ServiceConnection
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");

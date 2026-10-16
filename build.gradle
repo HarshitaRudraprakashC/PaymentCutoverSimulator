@@ -72,3 +72,15 @@ tasks.register('migrate', org.springframework.boot.gradle.tasks.run.BootRun) {
             '--spring.main.banner-mode=off',
             '--logging.level.root=WARN'        // keep the console for the migration log
 }
+
+// ./gradlew simulate  -> 10,000 payments captured safely, then the same naively; prints the comparison table.
+tasks.register('simulate', org.springframework.boot.gradle.tasks.run.BootRun) {
+    group = 'application'
+    description = 'Runs safe vs naive capture with injected timeouts and prints the results table'
+    mainClass.set(tasks.named('bootRun').flatMap { it.mainClass })
+    classpath = sourceSets.main.runtimeClasspath
+    args '--cutover.simulation.run-on-startup=true',
+            '--server.port=0',
+            '--spring.main.banner-mode=off',
+            '--logging.level.root=WARN'
+}

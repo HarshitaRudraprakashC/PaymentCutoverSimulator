@@ -51,3 +51,7 @@ migration:
   timeout-rate: 0.02        # 2% of captures time out AFTER the processor captured
   bug-rate: 0.05            # step 3: NEW under-captures 5% of payments
   drift-wait-seconds: 30    # how long to wait for Kafka to catch up at the end
+
+simulation:
+  payments: 10000           # per mode: 10,000 safe + 10,000 naive
+  timeout-rate: 0.05        # 5% of captures time out AFTER the processor captured
